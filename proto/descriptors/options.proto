@@ -362,6 +362,12 @@ message Costing {
     oneof has_low_class_factor {
       float low_class_factor = 97;
     }
+
+    // road-sorties fork additions. Deliberately parked at 900+ so upstream's
+    // sequential allocation never collides again -- field 97 was taken twice
+    // (prefer_curvy_roads vs upstream low_class_factor) across two rebases.
+    // Field numbers >= 16 all cost 2 tag bytes, so the high range is free.
+    bool prefer_curvy_roads = 900;
   }
 
   oneof has_options {
