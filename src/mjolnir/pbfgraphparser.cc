@@ -3854,6 +3854,7 @@ struct graph_parser {
     bool isRoad = false, isRoute = false, isBicycle = false, isConnectivity = false;
     bool isMultipolygon = false, isPedestrian = false, isArea = false;
     bool isConditional = false, isProbable = false, has_multiple_times = false;
+    bool isScenic = false;
     uint32_t bike_network_mask = 0;
 
     std::string network, ref, name, except;
@@ -3879,6 +3880,8 @@ struct graph_parser {
         } else if (tag.second == "bicycle" || tag.second == "mtb") {
           isBicycle = true;
         }
+      } else if (tag.first == "scenic") {
+        isScenic = true;
       } else if (tag.first == "restriction:conditional") {
         isConditional = true;
         condition = tag.second;
@@ -4030,6 +4033,9 @@ struct graph_parser {
           value == "cr" || value == "byway" || value == "scenic" || value == "connector" ||
           value == "county")
         special_network = true;
+        if (value == "scenic") {
+          isScenic = true; // scenic value
+        }
     }
 
     // Convert into a vector of helper structs to simplify processing by using
@@ -4043,6 +4049,18 @@ struct graph_parser {
     members.reserve(relation.members().size());
     for (const auto& member : relation.members()) {
       members.push_back(Member{member.type(), static_cast<uint64_t>(member.ref()), member.role()});
+    }
+
+    if (isScenic) {
+      OSMScenicRoute scenic;
+      const uint32_t name_index = osmdata_.name_offset_map.index(name);
+      const uint32_t ref_index = osmdata_.name_offset_map.index(ref);
+
+      scenic.name_index = name_index;
+      scenic.ref_index = ref_index;
+      for (const auto& member : members) {
+        osmdata_.scenic_routes.insert(ScenicRouteMultiMap::value_type(member.member_id, scenic));
+      }
     }
 
     if (isBicycle && isRoute && !network.empty()) {

@@ -368,6 +368,7 @@ message Costing {
     // (prefer_curvy_roads vs upstream low_class_factor) across two rebases.
     // Field numbers >= 16 all cost 2 tag bytes, so the high range is free.
     bool prefer_curvy_roads = 900;
+    bool prefer_scenic_roads = 901;
   }
 
   oneof has_options {
