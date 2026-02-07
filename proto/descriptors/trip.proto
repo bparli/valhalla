@@ -251,6 +251,7 @@ message TripLeg {
     bool traffic_signal = 66;
     HovType hov_type = 67;
     uint32 curvature = 68;
+    bool scenic = 69;           // Is this edge part of a scenic route?
   }
 
   message IntersectingEdge {

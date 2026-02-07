@@ -128,6 +128,7 @@ constexpr std::string_view kEdgeAccessBwd = "edge.access_backward";
 constexpr std::string_view kEdgeLiveSpeedBwd = "edge.live_speed_backward";
 constexpr std::string_view kEdgeFreeflowSpeedBwd = "edge.freeflow_speed_backward";
 constexpr std::string_view kEdgeConstrainedSpeedBwd = "edge.freeflow_speed_backward";
+constexpr std::string_view kEdgeScenic = "edge.scenic";
 
 // Node keys
 constexpr std::string_view kNodeIntersectingEdgeBeginHeading = "node.intersecting_edge.begin_heading";
