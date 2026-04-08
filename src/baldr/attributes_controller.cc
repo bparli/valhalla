@@ -155,6 +155,8 @@ const std::unordered_map<std::string_view, bool> AttributesController::kDefaultA
     {kEdgeLiveSpeedBwd, false},
     {kEdgeFreeflowSpeedBwd, false},
     {kEdgeConstrainedSpeedBwd, false},
+    {kEdgeStopSign, true},
+    {kEdgeYieldSign, true},
     {kEdgeScenic, true},
 
     // Node keys
