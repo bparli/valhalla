@@ -120,6 +120,13 @@ config = {
         "max_archived_files": Optional(int),
     },
     "mjolnir": {
+        "logging": {
+            "type": "std_out",
+            "color": True,
+            "file_name": "path_to_some_file.log",
+            "max_file_size": Optional(int),
+            "max_archived_files": Optional(int),
+        },
         "max_cache_size": 1000000000,
         "id_table_size": 1300000000,
         "use_lru_mem_cache": False,
