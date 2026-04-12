@@ -249,8 +249,8 @@ message TripLeg {
     }
     SpeedType speed_type = 65;
     bool traffic_signal = 66;
-    bool stop_sign = 70;
-    bool yield_sign = 71;
+    bool stop_sign = 72;
+    bool yield_sign = 73;
     HovType hov_type = 67;
     uint32 curvature = 68;
     bool scenic = 69;           // Is this edge part of a scenic route?
