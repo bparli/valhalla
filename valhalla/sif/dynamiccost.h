@@ -1401,6 +1401,9 @@ protected:
   bool use_hierarchy_limits{true};
   bool prefer_curvy_roads_{false};
   bool prefer_scenic_roads_{false};
+  // Overall scenic bias strength [0,1]. Defaults to full strength so a bare
+  // prefer_scenic_roads request needs no extra parameter.
+  float scenic_preference_{1.0f};
 
   bool exclude_cash_only_tolls_{false};
 
@@ -1511,6 +1514,7 @@ protected:
 
     prefer_curvy_roads_ = costing_options.prefer_curvy_roads();
     prefer_scenic_roads_ = costing_options.prefer_scenic_roads();
+    scenic_preference_ = costing_options.scenic_preference();
 
     exclude_unpaved_ = costing_options.exclude_unpaved();
     exclude_bridges_ = costing_options.exclude_bridges();
@@ -1634,6 +1638,7 @@ struct BaseCostingOptionsConfig {
   bool has_excludes_;
   bool prefer_curvy_roads_ = false;
   bool prefer_scenic_roads_ = false;
+  float scenic_preference_ = 1.0f;
 
   bool exclude_cash_only_tolls_ = false;
 

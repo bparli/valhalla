@@ -530,14 +530,23 @@ public:
    * @return  Returns true if the edge is part of a scenic route, false otherwise.
    */
   bool scenic() const {
-    return scenic_;
+    return scenic_tier_ != 0;
   }
 
   /**
-   * Set the scenic route flag for this directed edge.
-   * @param  scenic  Scenic route flag. True if edge is part of a scenic route.
+   * Scenic-route bias tier for this edge.
+   * @return  0 = not scenic, 1 = state, 2 = national, 3 = premier.
    */
-  void set_scenic(const bool scenic);
+  uint32_t scenic_tier() const {
+    return scenic_tier_;
+  }
+
+  /**
+   * Set the scenic route tier for this directed edge.
+   * @param  scenic_tier  Scenic tier (0 = not scenic, 1 = state, 2 = national,
+   *                      3 = premier).
+   */
+  void set_scenic_tier(const uint32_t scenic_tier);
 
   /**
    * Get the number of lanes for this directed edge.
@@ -1282,8 +1291,10 @@ protected:
   uint64_t indoor_ : 1;         // Is this edge indoor
   uint64_t lit_ : 1;            // Is the edge lit?
   uint64_t dest_only_hgv_ : 1;  // destonly for HGV specifically
-  uint64_t scenic_ : 1;         // Is this edge part of a scenic route?
-  uint64_t spare4_ : 2;
+  uint64_t scenic_tier_ : 3;    // Scenic-route bias tier (0=not scenic, 1=state,
+                                // 2=national, 3=premier). Widened from the former
+                                // scenic_:1 flag by reclaiming the adjacent 2 spare
+                                // bits, so the packed struct size is unchanged.
 
   // 5th 8-byte word
   uint64_t turntype_ : 24;      // Turn type (see graphconstants.h)

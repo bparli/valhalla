@@ -3856,6 +3856,9 @@ struct graph_parser {
     bool isConditional = false, isProbable = false, has_multiple_times = false;
     bool isScenic = false;
     uint32_t bike_network_mask = 0;
+    // Scenic bias tier stamped by the upstream pipeline (mapBuilder). 0 = unset;
+    // a scenic relation with no explicit tier defaults to 1 (State) below.
+    uint32_t scenic_tier = 0;
 
     std::string network, ref, name, except;
     std::string from_lanes, from, to_lanes, to;
@@ -3882,6 +3885,10 @@ struct graph_parser {
         }
       } else if (tag.first == "scenic") {
         isScenic = true;
+      } else if (tag.first == "scenic_tier") {
+        // Explicit bias tier stamped by mapBuilder (1=state, 2=national, 3=premier).
+        isScenic = true;
+        scenic_tier = static_cast<uint32_t>(std::max(0, to_int(tag.second)));
       } else if (tag.first == "restriction:conditional") {
         isConditional = true;
         condition = tag.second;
@@ -4058,6 +4065,9 @@ struct graph_parser {
 
       scenic.name_index = name_index;
       scenic.ref_index = ref_index;
+      // Default an untiered scenic relation to tier 1 (State); clamp to the max.
+      scenic.tier = static_cast<uint8_t>(
+          std::min(scenic_tier > 0 ? scenic_tier : 1u, kMaxScenicTier));
       for (const auto& member : members) {
         osmdata_.scenic_routes.insert(ScenicRouteMultiMap::value_type(member.member_id, scenic));
       }

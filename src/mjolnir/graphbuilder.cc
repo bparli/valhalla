@@ -827,11 +827,12 @@ void BuildTileSet(const std::string& ways_file,
             }
           }
 
-          // Check if this way is part of a scenic route
-          bool scenic = false;
-          auto scenic_route = osmdata.scenic_routes.find(w.way_id());
-          if (scenic_route != osmdata.scenic_routes.end()) {
-            scenic = true;
+          // Check if this way is part of a scenic route. A way can belong to
+          // multiple scenic relations; keep the highest bias tier.
+          uint32_t scenic_tier = 0;
+          auto scenic_range = osmdata.scenic_routes.equal_range(w.way_id());
+          for (auto it = scenic_range.first; it != scenic_range.second; ++it) {
+            scenic_tier = std::max<uint32_t>(scenic_tier, it->second.tier);
           }
 
           // Check if refs occur in both directions for this way. If so, a separate EdgeInfo needs to
@@ -1050,7 +1051,8 @@ void BuildTileSet(const std::string& ways_file,
                                  n, has_signal, has_stop, has_yield,
                                  ((has_stop || has_yield) ? node.minor() : false), restrictions,
                                  bike_network, edge.attributes.reclass_ferry,
-                                 static_cast<RoadClass>(edge.attributes.importance_hierarchy), scenic);
+                                 static_cast<RoadClass>(edge.attributes.importance_hierarchy),
+                                 scenic_tier);
 
           DirectedEdge& directededge = graphtile.directededges().emplace_back(de);
           // temporarily set the leaves tile flag to indicate when we need to search the access.bin

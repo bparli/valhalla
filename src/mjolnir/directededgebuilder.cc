@@ -28,7 +28,7 @@ DirectedEdgeBuilder::DirectedEdgeBuilder(const OSMWay& way,
                                          const uint32_t bike_network,
                                          const bool reclass_ferry,
                                          const baldr::RoadClass rc_hierarchy,
-                                         const bool scenic)
+                                         const uint32_t scenic_tier)
     : DirectedEdge() {
   set_endnode(endnode);
   set_use(use);
@@ -53,7 +53,7 @@ DirectedEdgeBuilder::DirectedEdgeBuilder(const OSMWay& way,
   }
 
   set_truck_route(way.truck_route());
-  set_scenic(scenic);
+  set_scenic_tier(scenic_tier);
 
   if (rc_hierarchy < baldr::RoadClass::kInvalid) {
     // hijack shortcut flag to indicate whether this needs to be moved in hierarchy builder

@@ -197,6 +197,12 @@ constexpr uint32_t kMaxTurnRestrictionEdges = 8;
 // Maximum lane count
 constexpr uint32_t kMaxLaneCount = 15;
 
+// Scenic-route bias tiers. Stored in the 3-bit DirectedEdge::scenic_tier_ field.
+// 0 = not scenic, 1 = state, 2 = national, 3 = premier (All-American Road /
+// National Parkway). kMaxScenicTier is the largest meaningful tier, not the
+// field capacity (which is 7).
+constexpr uint32_t kMaxScenicTier = 3;
+
 // Number of edges considered for edge transitions
 constexpr uint32_t kNumberOfEdgeTransitions = 8;
 

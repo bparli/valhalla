@@ -369,6 +369,9 @@ message Costing {
     // Field numbers >= 16 all cost 2 tag bytes, so the high range is free.
     bool prefer_curvy_roads = 900;
     bool prefer_scenic_roads = 901;
+    // Overall strength of the scenic bias, [0,1]. Scales the per-tier discount
+    // (0 = no bias even with prefer_scenic_roads, 1 = full bias). Defaults to 1.
+    float scenic_preference = 902;
   }
 
   oneof has_options {

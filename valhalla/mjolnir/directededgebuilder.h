@@ -34,7 +34,8 @@ public:
    * @param  bike_network    Mask of bike_networks from relations.
    * @param  reclass_ferry   Whether this edge was in a ferry path
    * @param  rc_hierarchy    The road class for hierarchies
-   * @param  scenic          Whether this edge is part of a scenic route
+   * @param  scenic_tier     Scenic bias tier (0=not scenic, 1=state, 2=national,
+   *                         3=premier)
    */
   DirectedEdgeBuilder(const OSMWay& way,
                       const baldr::GraphId& endnode,
@@ -53,7 +54,7 @@ public:
                       const uint32_t bike_network,
                       const bool reclass_ferry,
                       const baldr::RoadClass rc_hierarchy,
-                      const bool scenic = false);
+                      const uint32_t scenic_tier = 0);
 };
 
 } // namespace mjolnir

@@ -2343,19 +2343,28 @@ struct OSMWay {
   }
 
   /**
-   * Sets the scenic route flag.
-   * @param  scenic  Is this part of a scenic route?
+   * Sets the scenic route tier.
+   * @param  scenic_tier  Scenic bias tier (0=not scenic, 1=state, 2=national,
+   *                      3=premier).
    */
-  void set_scenic(const bool scenic) {
-    scenic_ = scenic;
+  void set_scenic_tier(const uint32_t scenic_tier) {
+    scenic_tier_ = (scenic_tier <= baldr::kMaxScenicTier) ? scenic_tier : baldr::kMaxScenicTier;
+  }
+
+  /**
+   * Get the scenic route tier.
+   * @return  Returns the scenic bias tier (0 = not scenic).
+   */
+  uint32_t scenic_tier() const {
+    return scenic_tier_;
   }
 
   /**
    * Get the scenic route flag.
-   * @return  Returns scenic route flag.
+   * @return  Returns true if this is part of any scenic route.
    */
   bool scenic() const {
-    return scenic_;
+    return scenic_tier_ != 0;
   }
 
   /**
@@ -2687,7 +2696,9 @@ struct OSMWay {
   uint32_t forward_tagged_lanes_ : 1;
   uint32_t backward_tagged_lanes_ : 1;
   uint32_t truck_route_ : 1;
-  uint32_t scenic_ : 1;        // Is this part of a scenic route?
+  uint32_t scenic_tier_ : 3;   // Scenic-route bias tier (0=not scenic, 1=state,
+                               // 2=national, 3=premier). Widened from scenic_:1
+                               // into 2 previously-unused bits of this word.
   uint32_t sidewalk_right_ : 1;
   uint32_t sidewalk_left_ : 1;
   uint32_t sac_scale_ : 3;

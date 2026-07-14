@@ -64,6 +64,7 @@ struct OSMAreaMember {
 struct OSMScenicRoute {
   uint32_t name_index;
   uint32_t ref_index;
+  uint8_t tier; // Scenic bias tier (0=not scenic, 1=state, 2=national, 3=premier)
 };
 
 // OSM lane connectivity (stored within OSMData)

@@ -57,6 +57,18 @@ constexpr float kDefaultAlleyFactor = 1.0f;
 // How much to favor turn channels
 constexpr float kTurnChannelFactor = 0.6f;
 
+// Scenic-route cost multipliers indexed by DirectedEdge::scenic_tier()
+// (0=not scenic, 1=state, 2=national, 3=premier). Lower = more preferred, so
+// national/premier byways beat state ones head-to-head. These set the *relative*
+// preference; the per-request scenic_preference scalar dials overall strength.
+constexpr float kScenicTierFactor[] = {1.0f, 0.40f, 0.15f, 0.05f};
+
+// Blend a tier's scenic discount with the request's scenic_preference strength:
+// pref=1 gives the full tier factor, pref=0 gives no discount (1.0).
+inline float scenic_multiplier(uint32_t tier, float preference) {
+  return 1.0f - preference * (1.0f - kScenicTierFactor[tier]);
+}
+
 // Turn costs based on side of street driving
 constexpr float kRightSideTurnCosts[] = {kTCStraight,       kTCSlight,  kTCFavorable,
                                          kTCFavorableSharp, kTCReverse, kTCUnfavorableSharp,
@@ -493,8 +505,8 @@ Cost AutoCost::EdgeCost(const baldr::DirectedEdge* edge,
       // prefer curvy roads
       cost /= (edge->curvature() * 10);
     }
-    if (prefer_scenic_roads_ && edge->scenic()) {
-      cost *= 0.1f;
+    if (prefer_scenic_roads_ && edge->scenic_tier()) {
+      cost *= scenic_multiplier(edge->scenic_tier(), scenic_preference_);
     }
     return Cost(cost, sec);
   }
@@ -552,8 +564,9 @@ Cost AutoCost::EdgeCost(const baldr::DirectedEdge* edge,
    // Disable time factor if we're biasing towards curvy or scenic roads.
   auto cost = (prefer_curvy_roads_ || prefer_scenic_roads_) ? edge->length() * factor : (sec * inv_distance_factor_ + edge->length() * distance_factor_) * factor;
 
-  if (prefer_scenic_roads_ && edge->scenic()) {
-    cost *= 0.1f; // 90% reduction in cost for scenic routes
+  if (prefer_scenic_roads_ && edge->scenic_tier()) {
+    // Tier-weighted, preference-scaled scenic discount (national/premier beat state).
+    cost *= scenic_multiplier(edge->scenic_tier(), scenic_preference_);
   }
 
   if (prefer_curvy_roads_ && edge->curvature() > 5) {

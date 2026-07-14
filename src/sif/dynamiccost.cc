@@ -118,6 +118,11 @@ constexpr ranged_default_t<float> kSpeedPenaltyFactorRange{0.0f, kDefaultSpeedPe
 constexpr ranged_default_t<uint32_t> kFixedSpeedRange{0, baldr::kDisableFixedSpeed,
                                                       baldr::kMaxSpeedKph};
 
+// Overall scenic bias strength. Defaults to full strength (1.0) so a bare
+// prefer_scenic_roads request needs no extra parameter.
+constexpr float kDefaultScenicPreference = 1.0f;
+constexpr ranged_default_t<float> kScenicPreferenceRange{0.0f, kDefaultScenicPreference, 1.0f};
+
 // Default dimension
 constexpr float kDefaultHeight = 1.6f; // Meters (62.9921 inches)
 constexpr float kDefaultWidth = 1.9f;  // Meters (74.8031 inches)
@@ -582,6 +587,9 @@ void ParseBaseCostOptions(const rapidjson::Value& json,
   JSON_PBF_DEFAULT_V2(co, cfg.prefer_curvy_roads_, json, "/prefer_curvy_roads", prefer_curvy_roads);
 
   JSON_PBF_DEFAULT_V2(co, cfg.prefer_scenic_roads_, json, "/prefer_scenic_roads", prefer_scenic_roads);
+
+  JSON_PBF_RANGED_DEFAULT_V2(co, kScenicPreferenceRange, json, "/scenic_preference",
+                             scenic_preference, warnings);
 
   // service_penalty
   JSON_PBF_RANGED_DEFAULT(co, cfg.service_penalty_, json, "/service_penalty", service_penalty,

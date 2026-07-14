@@ -276,9 +276,9 @@ void DirectedEdge::set_truck_route(const bool truck_route) {
   truck_route_ = truck_route;
 }
 
-// Sets scenic route flag.
-void DirectedEdge::set_scenic(const bool scenic) {
-  scenic_ = scenic;
+// Sets scenic route tier (0 = not scenic, 1 = state, 2 = national, 3 = premier).
+void DirectedEdge::set_scenic_tier(const uint32_t scenic_tier) {
+  scenic_tier_ = (scenic_tier <= kMaxScenicTier) ? scenic_tier : kMaxScenicTier;
 }
 
 // Sets the number of lanes
