@@ -501,7 +501,7 @@ Cost AutoCost::EdgeCost(const baldr::DirectedEdge* edge,
 
   if (shortest_) {
     auto cost = edge->length();
-    if (prefer_curvy_roads_ && edge->curvature() > 5) {
+    if (prefer_curvy_roads_ && edge->curvature() > baldr::kCurvyThreshold) {
       // prefer curvy roads
       cost /= (edge->curvature() * 10);
     }
@@ -569,7 +569,7 @@ Cost AutoCost::EdgeCost(const baldr::DirectedEdge* edge,
     cost *= scenic_multiplier(edge->scenic_tier(), scenic_preference_);
   }
 
-  if (prefer_curvy_roads_ && edge->curvature() > 5) {
+  if (prefer_curvy_roads_ && edge->curvature() > baldr::kCurvyThreshold) {
       // prefer curvy roads
       cost /= (edge->curvature() * 10);
     }

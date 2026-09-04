@@ -217,6 +217,14 @@ constexpr uint32_t kMaxStopImpact = 7;
 constexpr uint32_t kMaxGradeFactor = 15;
 constexpr uint32_t kMaxCurvatureFactor = 15;
 
+// road-sorties fork addition. Curvature above which an edge counts as "curvy".
+// compute_curvature() (mjolnir/util.cc) scores each 3-point radius as 1500/radius
+// -- zero beyond 1000 m -- then averages, so a value of 6 means an average curve
+// radius of about 250 m. Both the routing bias (AutoCost::EdgeCost) and the
+// reported curvy_length read this, so the mileage we show is by definition the
+// mileage that received the discount.
+constexpr uint32_t kCurvyThreshold = 5;
+
 // Maximum added time along shortcuts to approximate transition costs
 constexpr uint32_t kMaxAddedTime = 255;
 

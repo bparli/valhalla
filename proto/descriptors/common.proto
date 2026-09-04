@@ -423,6 +423,14 @@ message Summary {
   bool has_highway = 7;
   bool has_scenic = 8;       // Does the route contain any scenic road segments?
   float scenic_length = 9;  // Total length of scenic road segments (kilometers or miles based on units)
+
+  // road-sorties fork additions. Parked at 900+ so upstream's sequential
+  // allocation cannot collide with them, the way field 97 collided twice in
+  // options.proto. Fields >= 16 all cost 2 tag bytes, so the high range is free.
+  // (has_scenic/scenic_length above predate that convention and are still
+  // exposed to a collision if upstream ever extends Summary past 7.)
+  bool has_curvy = 900;      // Does the route contain any curvy road segments?
+  float curvy_length = 901;  // Total length of curvy segments (km or miles based on units)
 }
 
 message LevelChange {

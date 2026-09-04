@@ -1952,6 +1952,8 @@ void TripLegBuilder::Build(
   bool has_highway = false;
   bool has_scenic = false;
   double scenic_distance = 0.0;
+  bool has_curvy = false;
+  double curvy_distance = 0.0;
 
   // loop over the edges to build the trip leg
   for (auto edge_itr = path_begin; edge_itr != path_end; ++edge_itr, ++edge_index) {
@@ -1987,6 +1989,9 @@ void TripLegBuilder::Build(
     }
     if (directededge->scenic()) {
       has_scenic = true;
+    }
+    if (directededge->curvature() > baldr::kCurvyThreshold) {
+      has_curvy = true;
     }
 
     // Set node attributes - only set if they are true since they are optional
@@ -2211,6 +2216,13 @@ void TripLegBuilder::Build(
       scenic_distance += edge_length_km;
     }
 
+    // Accumulate curvy distance. Same threshold the costing uses to discount these
+    // edges, so the reported mileage matches what prefer_curvy_roads actually chased.
+    if (directededge->curvature() > baldr::kCurvyThreshold) {
+      float edge_length_km = directededge->length() * kKmPerMeter * (trim_end_pct - trim_start_pct);
+      curvy_distance += edge_length_km;
+    }
+
     // If we are at a node or if we hit the edge index that matches our through location edge index,
     // we need to reset to the shape index then increment the iterator
     if (intermediate_itr != trip_path.mutable_location()->end() &&
@@ -2357,6 +2369,8 @@ void TripLegBuilder::Build(
   summary->set_has_highway(has_highway);
   summary->set_has_scenic(has_scenic);
   summary->set_scenic_length(scenic_distance);
+  summary->set_has_curvy(has_curvy);
+  summary->set_curvy_length(curvy_distance);
 
   // Add that extra costing information if requested
   AccumulateRecostingInfoForward(options, start_pct, end_pct, forward_time_info, invariant,

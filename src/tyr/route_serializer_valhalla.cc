@@ -103,6 +103,8 @@ void summary(const valhalla::Api& api, int route_index, rapidjson::writer_wrappe
   bool has_ferry = false;
   bool has_scenic = false;
   double scenic_length = 0.0;
+  bool has_curvy = false;
+  double curvy_length = 0.0;
   AABB2<PointLL> bbox(10000.0f, 10000.0f, -10000.0f, -10000.0f);
   std::vector<double> recost_times(api.options().recostings_size(), 0);
   for (int leg_index = 0; leg_index < api.directions().routes(route_index).legs_size(); ++leg_index) {
@@ -132,6 +134,8 @@ void summary(const valhalla::Api& api, int route_index, rapidjson::writer_wrappe
     has_ferry = has_ferry || leg.summary().has_ferry();
     has_scenic = has_scenic || leg.summary().has_scenic();
     scenic_length += leg.summary().scenic_length();
+    has_curvy = has_curvy || leg.summary().has_curvy();
+    curvy_length += leg.summary().curvy_length();
   }
 
   writer.start_object("summary");
@@ -143,6 +147,11 @@ void summary(const valhalla::Api& api, int route_index, rapidjson::writer_wrappe
   if (has_scenic) {
     writer.set_precision(api.options().units() == Options::miles ? 4 : 3);
     writer("scenic_length", scenic_length);
+  }
+  writer("has_curvy", has_curvy);
+  if (has_curvy) {
+    writer.set_precision(api.options().units() == Options::miles ? 4 : 3);
+    writer("curvy_length", curvy_length);
   }
   writer.set_precision(tyr::kCoordinatePrecision);
   writer("min_lat", bbox.miny());
@@ -276,6 +285,7 @@ void legs(valhalla::Api& api, int route_index, rapidjson::writer_wrapper_t& writ
     bool has_highway = false;
     bool has_ferry = false;
     bool has_scenic = false;
+    bool has_curvy = false;
 
     if (directions_leg.maneuver_size())
       writer.start_array("maneuvers");
@@ -660,6 +670,12 @@ void legs(valhalla::Api& api, int route_index, rapidjson::writer_wrapper_t& writ
     if (has_scenic) {
       writer.set_precision(length_prec);
       writer("scenic_length", directions_leg.summary().scenic_length());
+    }
+    has_curvy = directions_leg.summary().has_curvy();
+    writer("has_curvy", has_curvy);
+    if (has_curvy) {
+      writer.set_precision(length_prec);
+      writer("curvy_length", directions_leg.summary().curvy_length());
     }
     writer.set_precision(tyr::kCoordinatePrecision);
     writer("min_lat", directions_leg.summary().bbox().min_ll().lat());

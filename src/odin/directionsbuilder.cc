@@ -434,7 +434,7 @@ void DirectionsBuilder::PopulateDirectionsLeg(const Options& options,
   }
   trip_directions.mutable_summary()->set_has_time_restrictions(has_time_restrictions);
 
-  // Populate toll, highway, ferry, scenic tags
+  // Populate toll, highway, ferry, scenic, curvy tags
   trip_directions.mutable_summary()->set_has_toll(etp->summary().has_toll());
   trip_directions.mutable_summary()->set_has_highway(etp->summary().has_highway());
   trip_directions.mutable_summary()->set_has_ferry(etp->summary().has_ferry());
@@ -445,6 +445,13 @@ void DirectionsBuilder::PopulateDirectionsLeg(const Options& options,
     scenic_length *= midgard::kMilePerKm;
   }
   trip_directions.mutable_summary()->set_scenic_length(scenic_length);
+  trip_directions.mutable_summary()->set_has_curvy(etp->summary().has_curvy());
+  // curvy_length is stored in km as well; convert alongside scenic_length.
+  float curvy_length = etp->summary().curvy_length();
+  if (options.units() == Options::miles) {
+    curvy_length *= midgard::kMilePerKm;
+  }
+  trip_directions.mutable_summary()->set_curvy_length(curvy_length);
 }
 
 } // namespace odin
