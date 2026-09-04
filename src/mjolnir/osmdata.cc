@@ -20,6 +20,7 @@ const std::string count_file = "osmdata_counts.bin";
 const std::string restrictions_file = "osmdata_restrictions.bin";
 const std::string viaset_file = "osmdata_viaset.bin";
 const std::string access_restrictions_file = "osmdata_access_restrictions.bin";
+const std::string node_access_restrictions_file = "osmdata_node_access_restrictions.bin";
 const std::string bike_relations_file = "osmdata_bike_relations.bin";
 const std::string area_relations_file = "osmdata_area_relations.bin";
 const std::string way_ref_file = "osmdata_way_refs.bin";
@@ -650,6 +651,8 @@ bool OSMData::write_to_temp_files(const std::string& tile_dir) {
   file.write(reinterpret_cast<const char*>(&node_name_count), sizeof(uint64_t));
   file.write(reinterpret_cast<const char*>(&node_exit_to_count), sizeof(uint64_t));
   file.write(reinterpret_cast<const char*>(&node_linguistic_count), sizeof(uint64_t));
+  file.write(reinterpret_cast<const char*>(&node_dimension_kept), sizeof(uint64_t));
+  file.write(reinterpret_cast<const char*>(&node_dimension_dropped), sizeof(uint64_t));
   file.write(reinterpret_cast<const char*>(&max_way_id), sizeof(uint64_t));
   file.write(reinterpret_cast<const char*>(&max_node_id), sizeof(uint64_t));
   file.close();
@@ -659,6 +662,7 @@ bool OSMData::write_to_temp_files(const std::string& tile_dir) {
       write_restrictions(tile_dir + restrictions_file, restrictions) &&
       write_viaset(tile_dir + viaset_file, via_set) &&
       write_access_restrictions(tile_dir + access_restrictions_file, access_restrictions) &&
+      write_access_restrictions(tile_dir + node_access_restrictions_file, node_access_restrictions) &&
       write_bike_relations(tile_dir + bike_relations_file, bike_relations) &&
       write_area_relations(tile_dir + area_relations_file, area_relations) &&
       write_way_refs(tile_dir + way_ref_file, way_ref) &&
@@ -700,6 +704,8 @@ bool OSMData::read_from_temp_files(const std::string& tile_dir) {
   file.read(reinterpret_cast<char*>(&node_name_count), sizeof(uint64_t));
   file.read(reinterpret_cast<char*>(&node_exit_to_count), sizeof(uint64_t));
   file.read(reinterpret_cast<char*>(&node_linguistic_count), sizeof(uint64_t));
+  file.read(reinterpret_cast<char*>(&node_dimension_kept), sizeof(uint64_t));
+  file.read(reinterpret_cast<char*>(&node_dimension_dropped), sizeof(uint64_t));
   file.read(reinterpret_cast<char*>(&max_way_id), sizeof(uint64_t));
   file.read(reinterpret_cast<char*>(&max_node_id), sizeof(uint64_t));
   file.close();
@@ -709,6 +715,8 @@ bool OSMData::read_from_temp_files(const std::string& tile_dir) {
       read_restrictions(tile_directory + restrictions_file, restrictions) &&
       read_viaset(tile_directory + viaset_file, via_set) &&
       read_access_restrictions(tile_directory + access_restrictions_file, access_restrictions) &&
+      read_access_restrictions(tile_directory + node_access_restrictions_file,
+                               node_access_restrictions) &&
       read_bike_relations(tile_directory + bike_relations_file, bike_relations) &&
       read_area_relations(tile_directory + area_relations_file, area_relations) &&
       read_way_refs(tile_directory + way_ref_file, way_ref) &&
@@ -782,6 +790,7 @@ void OSMData::cleanup_temp_files(const std::string& tile_dir) {
   remove_temp_file(tile_dir + restrictions_file);
   remove_temp_file(tile_dir + viaset_file);
   remove_temp_file(tile_dir + access_restrictions_file);
+  remove_temp_file(tile_dir + node_access_restrictions_file);
   remove_temp_file(tile_dir + bike_relations_file);
   remove_temp_file(tile_dir + area_relations_file);
   remove_temp_file(tile_dir + way_ref_file);

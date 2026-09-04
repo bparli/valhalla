@@ -55,6 +55,51 @@ int get_number(std::string_view tag, const std::string& value) { // NOLINT
   return num.value();
 }
 
+// D7 -- report what the build actually ingested for vehicle dimensions, so coverage is
+// a number the rebuild prints rather than something inferred from taginfo afterwards.
+// Also flags values that parsed but cannot be true: a 30 cm clearance or a 60 m one is a
+// tagging error, and because an over-low value silently prohibits a real road it is worth
+// seeing rather than discovering through a support ticket.
+void LogDimensionCoverage(const OSMData& osmdata) {
+  struct Tally {
+    uint64_t count = 0;
+    uint64_t implausible = 0;
+  };
+  // Restriction values are stored in centimetres for lengths and 100ths of a tonne for
+  // weight. Bounds are deliberately loose -- this is looking for nonsense, not for
+  // unusual-but-real postings.
+  auto tally = [](const AccessRestrictionsMultiMap& m, AccessType t, uint64_t lo, uint64_t hi) {
+    Tally out;
+    for (const auto& kv : m) {
+      if (kv.second.type() != t) {
+        continue;
+      }
+      out.count++;
+      const uint64_t v = kv.second.value();
+      out.implausible += (v < lo || v > hi);
+    }
+    return out;
+  };
+
+  const auto h = tally(osmdata.access_restrictions, AccessType::kMaxHeight, 100, 2000);
+  const auto w = tally(osmdata.access_restrictions, AccessType::kMaxWidth, 100, 1000);
+  const auto l = tally(osmdata.access_restrictions, AccessType::kMaxLength, 200, 5000);
+  const auto t = tally(osmdata.access_restrictions, AccessType::kMaxWeight, 10, 20000);
+  const auto nh = tally(osmdata.node_access_restrictions, AccessType::kMaxHeight, 100, 2000);
+  const auto nw = tally(osmdata.node_access_restrictions, AccessType::kMaxWidth, 100, 1000);
+
+  auto line = [](const std::string& name, const Tally& x) {
+    return name + "=" + std::to_string(x.count) +
+           (x.implausible ? " (" + std::to_string(x.implausible) + " implausible)" : "");
+  };
+  LOG_INFO("Vehicle dimension restrictions on ways: " + line("maxheight", h) + " " +
+           line("maxwidth", w) + " " + line("maxlength", l) + " " + line("maxweight", t));
+  LOG_INFO("Vehicle dimension restrictions on nodes: " + line("maxheight", nh) + " " +
+           line("maxwidth", nw) + " kept=" + std::to_string(osmdata.node_dimension_kept) +
+           " dropped=" + std::to_string(osmdata.node_dimension_dropped) +
+           " (dropped = tagged but no usable value; never guessed at)");
+}
+
 void set_access_restriction_value(OSMAccessRestriction& restriction,
                                   const std::string& value,
                                   const std::function<uint64_t(const std::string&)>& value_setter) {
@@ -2187,6 +2232,39 @@ struct graph_parser {
         ref_katakana_ = tag.second;
       } else if (tag.first == "ref:pronunciation:jeita") {
         ref_jeita_ = tag.second;
+      } else if (tag.first == "maxheight" || tag.first == "maxwidth") {
+        // Dimension restriction posted on the node itself -- a bridge or tunnel portal,
+        // or a barrier=height_restrictor. Valhalla reads these on ways but never read
+        // them on nodes, so they were silently absent from routing.
+        //
+        // Force an intersection so the graph breaks the way here. Without that the
+        // restricted point sits interior to an edge and there is nothing to attach the
+        // restriction to; with it, GraphBuilder can hang the restriction on every edge
+        // incident to the node, which is correct because using any of them means
+        // passing the restriction.
+        //
+        // lua has already normalized the value to metres; anything unparseable arrives
+        // empty and is dropped rather than guessed at.
+        if (hasTag) {
+          const float meters = to_float(tag.second);
+          if (meters > 0.0f) {
+            OSMAccessRestriction restriction;
+            restriction.set_type(tag.first == "maxheight" ? AccessType::kMaxHeight
+                                                          : AccessType::kMaxWidth);
+            restriction.set_modes(kTruckAccess | kAutoAccess | kHOVAccess | kTaxiAccess |
+                                  kBusAccess);
+            restriction.set_value(static_cast<uint64_t>(meters * 100));
+            osmdata_.node_access_restrictions.insert(
+                AccessRestrictionsMultiMap::value_type(osmid, restriction));
+            osmdata_.node_dimension_kept++;
+            osmdata_.edge_count += !intersection;
+            intersection = true;
+          } else {
+            osmdata_.node_dimension_dropped++;
+          }
+        } else {
+          osmdata_.node_dimension_dropped++;
+        }
       } else if (tag.first == "amenity" && tag.second == "parking") {
         osmdata_.edge_count += !intersection;
         intersection = true;
@@ -5547,6 +5625,8 @@ void PBFGraphParser::ParseNodes(const boost::property_tree::ptree& pt,
   parser.reset(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
   LOG_INFO("Finished with " + std::to_string(osmdata.osm_node_count) +
            " nodes contained in routable ways");
+
+  LogDimensionCoverage(osmdata);
 
   // we need to sort the refs so that we easily iterate over them for building edges
   // so we line them first by way index then by shape index of the node

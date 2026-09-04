@@ -139,6 +139,17 @@ struct OSMData {
   uint64_t node_exit_to_count;    // Number of nodes with exit_to
   uint64_t node_linguistic_count; // Number of nodes with linguistic info
 
+  // D7 -- dimension-tag coverage counters, so a rebuild reports what it actually
+  // ingested instead of us inferring coverage from taginfo afterwards. Default-
+  // initialised because, unlike the counts above, they are written by only some code
+  // paths. Reported by LogDimensionCoverage() at the end of parsing.
+  // Only the node counters are stored: the node callback is the one place that sees a
+  // dimension tag and decides to discard it. Way-level tags are filtered in lua before
+  // C++ sees them, so a "way dropped" counter here would always read zero -- the way
+  // side is instead summarised by walking the restriction maps in LogDimensionCoverage.
+  uint64_t node_dimension_kept = 0;    // node maxheight/maxwidth that parsed to a usable value
+  uint64_t node_dimension_dropped = 0; // present but empty or unparseable -- never guessed at
+
   // Stores simple restrictions. Indexed by the from way Id
   RestrictionsMultiMap restrictions;
 
@@ -147,6 +158,15 @@ struct OSMData {
 
   // Stores access restrictions. Indexed by the from way Id.
   AccessRestrictionsMultiMap access_restrictions;
+
+  // Stores dimension restrictions posted on a NODE rather than a way -- bridge and
+  // tunnel portals tagged on the point, and barrier=height_restrictor. Indexed by the
+  // node Id, and applied in GraphBuilder to every edge incident to that node, since
+  // reaching any of them means passing the restriction. Kept separate from
+  // access_restrictions because that map is keyed by way and attaching a node's
+  // clearance to a whole way would restrict miles of road on the strength of one point.
+  // Small by construction: ~4,800 such nodes in the US extract.
+  AccessRestrictionsMultiMap node_access_restrictions;
 
   // Stores bike information from the relations.  Indexed by the way Id.
   BikeMultiMap bike_relations;

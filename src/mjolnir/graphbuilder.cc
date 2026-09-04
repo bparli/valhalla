@@ -460,6 +460,35 @@ uint32_t AddAccessRestrictions(const uint32_t edgeid,
   return modes;
 }
 
+// Applies a dimension restriction posted on a NODE to one of the edges meeting at it.
+//
+// Valhalla reads maxheight/maxwidth on ways but historically ignored them on nodes, which
+// misses bridge and tunnel portals tagged on the point itself plus barrier=height_restrictor
+// -- roughly 4,800 restrictions across the US, in the category that hurts most when missed.
+//
+// The node forces an intersection during parsing, so every edge here begins or ends at the
+// restricted point. Applying the restriction to all of them is correct rather than merely
+// convenient: reaching any of these edges means passing through the node, in either
+// direction, so a direction-specific rule would let the restriction be driven around.
+uint32_t AddNodeAccessRestrictions(const uint32_t edgeid,
+                                   const uint64_t nodeid,
+                                   const OSMData& osmdata,
+                                   GraphTileBuilder& graphtile) {
+  auto res = osmdata.node_access_restrictions.equal_range(nodeid);
+  if (res.first == osmdata.node_access_restrictions.end()) {
+    return 0;
+  }
+
+  uint32_t modes = 0;
+  for (auto r = res.first; r != res.second; ++r) {
+    AccessRestriction access_restriction(edgeid, r->second.type(), r->second.modes(),
+                                         r->second.value(), r->second.except_destination());
+    graphtile.AddAccessRestriction(access_restriction);
+    modes |= r->second.modes();
+  }
+  return modes;
+}
+
 // Computes speeds for ferries that have "duration" tag. Regardless of number of edges this ferry
 // will be split into, all of them should have the same speed.
 std::unordered_map<uint64_t, uint32_t> ComputeFerrySpeeds(const std::string& ways_file,
@@ -1168,6 +1197,10 @@ void BuildTileSet(const std::string& ways_file,
           if (directededge.forwardaccess()) {
             uint32_t ar_modes =
                 AddAccessRestrictions(idx, w.way_id(), osmdata, directededge.forward(), graphtile);
+            // A restriction posted on this edge's own start node applies as well -- see
+            // AddNodeAccessRestrictions. Modes are OR-ed so a node restriction cannot
+            // clear the flag a way restriction already set on the same edge.
+            ar_modes |= AddNodeAccessRestrictions(idx, node.osmid_, osmdata, graphtile);
             if (ar_modes) {
               directededge.set_access_restriction(ar_modes);
             }

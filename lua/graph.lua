@@ -2351,6 +2351,18 @@ function nodes_proc (kv, nokeys)
     end
   end
 
+  --Node-level dimension restrictions. Valhalla has always read maxheight/maxwidth on
+  --ways but never on nodes, so restrictions posted on the point itself -- bridge and
+  --tunnel portals, and barrier=height_restrictor -- were invisible to routing. That is
+  --roughly 4,800 US restrictions, concentrated in the category that does the most damage
+  --when missed. Normalized here exactly as the way tags are, so the parser sees metres.
+  --
+  --A barrier=height_restrictor carrying no maxheight is deliberately NOT given a default:
+  --inventing a clearance would prohibit real roads on a guess. Those are counted as
+  --dropped at build time instead.
+  kv["maxheight"] = normalize_measurement(kv["maxheight"]) or normalize_measurement(kv["maxheight:physical"])
+  kv["maxwidth"] = normalize_measurement(kv["maxwidth"]) or normalize_measurement(kv["maxwidth:physical"])
+
   kv["private"] = any_in(private, kv["access"]) or
                   any_in(private, kv["motor_vehicle"]) or
                   "false"
