@@ -124,6 +124,56 @@ TEST(Lua, NumberDoublePeriod) {
   ASSERT_TRUE(results.size() > 0);
 }
 
+void assert_weight_parses(const std::string& maxweight, float expected_tonnes) {
+  mjolnir::LuaTagTransform lua(std::string(lua_graph_lua, lua_graph_lua + lua_graph_lua_len));
+
+  TagsBuilder tags;
+  tags.insert({"highway", "primary"});
+  tags.insert({"maxweight", maxweight});
+  auto results = lua.Transform(mjolnir::OSMType::kWay, 1, tags.get());
+  ASSERT_TRUE(results.count("maxweight") == 1) << maxweight << " did not parse at all";
+  EXPECT_NEAR(expected_tonnes, std::stof(results["maxweight"]), 0.01f) << "for " << maxweight;
+}
+
+// maxweight must come out in METRIC TONNES: AutoCost::ModeSpecificAllowed compares
+// kMaxWeight against the request's weight in tonnes. Getting the unit wrong is
+// permissive -- the router believes the bridge is stronger than the sign says --
+// so these cases are safety-relevant, not cosmetic.
+TEST(Lua, WeightMetricUnits) {
+  assert_weight_parses("3.5", 3.5f); // OSM default unit is tonnes
+  assert_weight_parses("3.5t", 3.5f);
+  assert_weight_parses("3.5tonne", 3.5f);
+  assert_weight_parses("3.5tonnes", 3.5f);
+  assert_weight_parses("3500kg", 3.5f);
+}
+
+// The US-dominant spellings. "lbs" was previously divided by 2000 -- correct for
+// short tons, but the result was then read as tonnes, so every value came out
+// about 10% permissive. 57.9% of US maxweight tags are pounds.
+TEST(Lua, WeightPounds) {
+  assert_weight_parses("80000lbs", 36.29f);
+  assert_weight_parses("80000lb", 36.29f);
+  assert_weight_parses("2204.6226lbs", 1.0f);
+}
+
+// "st" and "lt" previously matched no branch at all and fell through to the bare
+// number path, which reads as tonnes -- so "40st" became 40 t instead of 36.29 t.
+// 34.4% of US maxweight tags are short tons.
+TEST(Lua, WeightShortAndLongTons) {
+  assert_weight_parses("40st", 36.29f);  // 40 short tons = 36.287 t
+  assert_weight_parses("1st", 0.91f);
+  assert_weight_parses("40lt", 40.64f);  // 40 long tons = 40.642 t
+  assert_weight_parses("1lt", 1.02f);
+}
+
+// Bare "ton"/"tons" is ambiguous between short (US) and long (UK), so it is
+// deliberately left as tonnes rather than guessed at. Pinned so the choice is
+// visible if anyone revisits it.
+TEST(Lua, WeightAmbiguousTonLeftAlone) {
+  assert_weight_parses("10ton", 10.0f);
+  assert_weight_parses("10tons", 10.0f);
+}
+
 TEST(Lua, TestForwardBackward) {
   // Way 25494427 version 14 has a "maxheight" tag value of 3..35 with the two
   // dots. This probably shouldn't be parsed?

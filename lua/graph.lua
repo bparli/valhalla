@@ -801,15 +801,33 @@ function normalize_weight(weight)
         end
       end
 
+      -- "ton"/"tons" is ambiguous -- a short ton in the US, a long ton in the UK --
+      -- so it is left as metric tonnes rather than guessed at. It is 0.7% of US
+      -- maxweight values. "st" and "lt" below are unambiguous and are converted.
       if w:sub(-3) == "ton" or w:sub(-4) == "tons" then
          if (num .. "ton" == w) or (num .. "tons" == w) then
            return round(tonumber(num),2)
          end
       end
 
+      -- Everything here returns METRIC TONNES: that is what the costing compares
+      -- against (AccessType::kMaxWeight is read as tonnes in ModeSpecificAllowed),
+      -- and it is OSM's default unit for a bare maxweight number.
+      if w:sub(-2) == "st" then
+        if (num .. "st" == w) then
+          return round((tonumber(num)*0.90718474),2) -- short tons (2000 lb) -> tonnes
+        end
+      end
+
+      if w:sub(-2) == "lt" then
+        if (num .. "lt" == w) then
+          return round((tonumber(num)*1.0160469),2) -- long tons (2240 lb) -> tonnes
+        end
+      end
+
       if w:sub(-2) == "lb" or w:sub(-3) == "lbs" then
         if (num .. "lb" == w) or (num .. "lbs" == w) then
-          return round((tonumber(num)/2000),2) -- convert to tons
+          return round((tonumber(num)/2204.6226),2) -- pounds -> tonnes
         end
       end
 
