@@ -4116,11 +4116,33 @@ struct graph_parser {
           value == "spur" || value == "truck" || value == "business" || value == "bypass" ||
           value == "belt" || value == "alternate" || value == "alt" || value == "toll" ||
           value == "cr" || value == "byway" || value == "scenic" || value == "connector" ||
-          value == "county")
+          value == "county") {
         special_network = true;
+      }
+    }
+
+    // road-sorties fork addition. "scenic" is not always the third of three tokens.
+    // The upstream block above inspects net[2] only when the network splits into
+    // exactly three, which silently missed every other shape the tag takes:
+    // US:Scenic (two), US:NY:Scenic:Alternate, US:NJ:Scenic:{Spur,Connector,Loop,Alt},
+    // US:CA:CR:Scenic and US:TN:secondary:Scenic (four). That was 15 of 972 curated
+    // scenic routes absent from the tiles since the feature shipped -- invisible for
+    // months because most were spur/alternate variants of byways whose main line is
+    // tagged through the map-match path anyway.
+    //
+    // Matching a whole token rather than a substring on purpose: a network like
+    // US:CA:San_Francisco:49_Mile_Scenic_Drive names a road rather than declaring a
+    // scenic designation, and substring matching would sweep in anything merely
+    // named "scenic". That one route stays unmatched, deliberately.
+    if (!isScenic) {
+      for (const auto& token : net) {
+        std::string value = token;
+        boost::algorithm::to_lower(value);
         if (value == "scenic") {
-          isScenic = true; // scenic value
+          isScenic = true;
+          break;
         }
+      }
     }
 
     // Convert into a vector of helper structs to simplify processing by using
