@@ -431,6 +431,20 @@ message Summary {
   // exposed to a collision if upstream ever extends Summary past 7.)
   bool has_curvy = 900;      // Does the route contain any curvy road segments?
   float curvy_length = 901;  // Total length of curvy segments (km or miles based on units)
+
+  // Unpaved reporting for RV routing. exclude_unpaved blocks *transitioning*
+  // onto unpaved (`!pred.unpaved() && edge->unpaved()`), not travelling on it,
+  // so a route that honoured the option can still contain unpaved -- 7.3% of
+  // successful paved-only routes to campgrounds do. has_unpaved is written
+  // unconditionally so a client can tell "no unpaved" from "this binary does
+  // not report it"; a client that cannot tell would show a silent all-clear.
+  bool has_unpaved = 902;
+  float unpaved_length = 903;       // Total unpaved length (km or miles based on units)
+  // Length of the *contiguous* unpaved run that ends at the destination, which
+  // is the shape most arrivals take: a paved trip down a gravel driveway. With
+  // unpaved_length it separates "the last 1.1 miles are unpaved" from "36.7 of
+  // 68.2 miles are unpaved" -- different decisions for whoever owns the rig.
+  float unpaved_tail_length = 904;
 }
 
 message LevelChange {

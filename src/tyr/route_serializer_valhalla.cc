@@ -105,6 +105,8 @@ void summary(const valhalla::Api& api, int route_index, rapidjson::writer_wrappe
   double scenic_length = 0.0;
   bool has_curvy = false;
   double curvy_length = 0.0;
+  bool has_unpaved = false;
+  double unpaved_length = 0.0;
   AABB2<PointLL> bbox(10000.0f, 10000.0f, -10000.0f, -10000.0f);
   std::vector<double> recost_times(api.options().recostings_size(), 0);
   for (int leg_index = 0; leg_index < api.directions().routes(route_index).legs_size(); ++leg_index) {
@@ -136,6 +138,25 @@ void summary(const valhalla::Api& api, int route_index, rapidjson::writer_wrappe
     scenic_length += leg.summary().scenic_length();
     has_curvy = has_curvy || leg.summary().has_curvy();
     curvy_length += leg.summary().curvy_length();
+    has_unpaved = has_unpaved || leg.summary().has_unpaved();
+    unpaved_length += leg.summary().unpaved_length();
+  }
+
+  // The route's unpaved tail is the last leg's tail, extended backwards through
+  // any earlier leg that is unpaved end to end -- otherwise a final leg that is
+  // entirely gravel would report only its own length as the run reaching the
+  // destination, understating it at exactly the waypoint that matters.
+  double unpaved_tail_length = 0.0;
+  const auto& route_legs = api.directions().routes(route_index).legs();
+  for (int leg_index = route_legs.size() - 1; leg_index >= 0; --leg_index) {
+    const auto& leg_summary = route_legs.Get(leg_index).summary();
+    unpaved_tail_length += leg_summary.unpaved_tail_length();
+    // Not whole-leg unpaved, so the run starts inside this leg and stops here.
+    // Compared with a tolerance because both values are floats that have been
+    // through a unit conversion.
+    if (leg_summary.unpaved_tail_length() < leg_summary.length() - 1e-4) {
+      break;
+    }
   }
 
   writer.start_object("summary");
@@ -152,6 +173,12 @@ void summary(const valhalla::Api& api, int route_index, rapidjson::writer_wrappe
   if (has_curvy) {
     writer.set_precision(api.options().units() == Options::miles ? 4 : 3);
     writer("curvy_length", curvy_length);
+  }
+  writer("has_unpaved", has_unpaved);
+  if (has_unpaved) {
+    writer.set_precision(api.options().units() == Options::miles ? 4 : 3);
+    writer("unpaved_length", unpaved_length);
+    writer("unpaved_tail_length", unpaved_tail_length);
   }
   writer.set_precision(tyr::kCoordinatePrecision);
   writer("min_lat", bbox.miny());
@@ -286,6 +313,7 @@ void legs(valhalla::Api& api, int route_index, rapidjson::writer_wrapper_t& writ
     bool has_ferry = false;
     bool has_scenic = false;
     bool has_curvy = false;
+    bool has_unpaved = false;
 
     if (directions_leg.maneuver_size())
       writer.start_array("maneuvers");
@@ -676,6 +704,13 @@ void legs(valhalla::Api& api, int route_index, rapidjson::writer_wrapper_t& writ
     if (has_curvy) {
       writer.set_precision(length_prec);
       writer("curvy_length", directions_leg.summary().curvy_length());
+    }
+    has_unpaved = directions_leg.summary().has_unpaved();
+    writer("has_unpaved", has_unpaved);
+    if (has_unpaved) {
+      writer.set_precision(length_prec);
+      writer("unpaved_length", directions_leg.summary().unpaved_length());
+      writer("unpaved_tail_length", directions_leg.summary().unpaved_tail_length());
     }
     writer.set_precision(tyr::kCoordinatePrecision);
     writer("min_lat", directions_leg.summary().bbox().min_ll().lat());

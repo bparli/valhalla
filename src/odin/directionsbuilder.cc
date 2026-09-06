@@ -452,6 +452,16 @@ void DirectionsBuilder::PopulateDirectionsLeg(const Options& options,
     curvy_length *= midgard::kMilePerKm;
   }
   trip_directions.mutable_summary()->set_curvy_length(curvy_length);
+  trip_directions.mutable_summary()->set_has_unpaved(etp->summary().has_unpaved());
+  // Both unpaved figures are stored in km; convert alongside the others.
+  float unpaved_length = etp->summary().unpaved_length();
+  float unpaved_tail_length = etp->summary().unpaved_tail_length();
+  if (options.units() == Options::miles) {
+    unpaved_length *= midgard::kMilePerKm;
+    unpaved_tail_length *= midgard::kMilePerKm;
+  }
+  trip_directions.mutable_summary()->set_unpaved_length(unpaved_length);
+  trip_directions.mutable_summary()->set_unpaved_tail_length(unpaved_tail_length);
 }
 
 } // namespace odin

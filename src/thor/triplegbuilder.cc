@@ -1954,6 +1954,12 @@ void TripLegBuilder::Build(
   double scenic_distance = 0.0;
   bool has_curvy = false;
   double curvy_distance = 0.0;
+  bool has_unpaved = false;
+  double unpaved_distance = 0.0;
+  // Length of the unpaved run currently in progress. Reset by every paved edge,
+  // so whatever is left when the loop ends is the run that reaches the
+  // destination -- the tail.
+  double unpaved_run = 0.0;
 
   // loop over the edges to build the trip leg
   for (auto edge_itr = path_begin; edge_itr != path_end; ++edge_itr, ++edge_index) {
@@ -1992,6 +1998,9 @@ void TripLegBuilder::Build(
     }
     if (directededge->curvature() > baldr::kCurvyThreshold) {
       has_curvy = true;
+    }
+    if (directededge->unpaved()) {
+      has_unpaved = true;
     }
 
     // Set node attributes - only set if they are true since they are optional
@@ -2223,6 +2232,18 @@ void TripLegBuilder::Build(
       curvy_distance += edge_length_km;
     }
 
+    // Accumulate unpaved distance, and the length of the run in progress. Same
+    // predicate exclude_unpaved tests, so what we report is what the option acted on.
+    {
+      float edge_length_km = directededge->length() * kKmPerMeter * (trim_end_pct - trim_start_pct);
+      if (directededge->unpaved()) {
+        unpaved_distance += edge_length_km;
+        unpaved_run += edge_length_km;
+      } else {
+        unpaved_run = 0.0;
+      }
+    }
+
     // If we are at a node or if we hit the edge index that matches our through location edge index,
     // we need to reset to the shape index then increment the iterator
     if (intermediate_itr != trip_path.mutable_location()->end() &&
@@ -2371,6 +2392,9 @@ void TripLegBuilder::Build(
   summary->set_scenic_length(scenic_distance);
   summary->set_has_curvy(has_curvy);
   summary->set_curvy_length(curvy_distance);
+  summary->set_has_unpaved(has_unpaved);
+  summary->set_unpaved_length(unpaved_distance);
+  summary->set_unpaved_tail_length(unpaved_run);
 
   // Add that extra costing information if requested
   AccumulateRecostingInfoForward(options, start_pct, end_pct, forward_time_info, invariant,
