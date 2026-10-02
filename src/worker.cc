@@ -914,6 +914,12 @@ void from_json(rapidjson::Document& doc, Options::Action action, Api& api) {
     options.set_admin_crossings(*admin_crossings);
   }
 
+  // whether to output sign_points (fork: signals, stop/yield signs, speed-limit changes per route)
+  auto sign_points = rapidjson::get_optional<bool>(doc, "/sign_points");
+  if (sign_points) {
+    options.set_sign_points(*sign_points);
+  }
+
   // whatever our costing is, check to see if we are going to ignore_closures
   std::stringstream ss;
   ss << "/costing_options/" << costing_str << "/ignore_closures";

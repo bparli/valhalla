@@ -562,4 +562,7 @@ message Options {
   TileOptions tile_options = 64;                                   // additional /tile specific options
   repeated Levels exclude_levels = 65;                             // Levels to exclude within the exclude_polygon at the same index
   uint32 expansion_max_distance = 66;                              // Maximum path distance in meters for expansion. 0 = disabled.
+
+  // road-sorties fork additions live at 900+ so upstream's sequential allocation never collides.
+  bool sign_points = 900;                                          // Include traffic signal / stop / yield / speed-limit points per route (valhalla serializer)
 }

@@ -1,11 +1,16 @@
 #include "route_serializer_valhalla.h"
 #include "baldr/rapidjson_utils.h"
 #include "midgard/aabb2.h"
+#include "midgard/encoded.h"
 #include "midgard/logging.h"
 #include "odin/enhancedtrippath.h"
 #include "proto_conversions.h"
 #include "tyr/serializers.h"
 
+#include <algorithm>
+#include <cmath>
+#include <set>
+#include <unordered_map>
 #include <vector>
 
 using namespace valhalla;
@@ -740,6 +745,235 @@ void legs(valhalla::Api& api, int route_index, rapidjson::writer_wrapper_t& writ
   }
   writer.end_array(); // legs
 }
+
+// sign_points (road-sorties fork): traffic signals, stop and yield signs, and
+// speed-limit change points along one route, in route order.
+//
+// The app used to recover these by map-matching the route shape back through
+// trace_attributes in <=150 km chunks. The trip already carries every attribute
+// that trace returned, without chunk seams or snap error, and emitting it here
+// gives the server and the on-device engine the same answer. The filtering rules
+// are a port of road-sorties app/valhalla_client.py get_traffic_signs; keep the
+// two in step while that endpoint still serves older app versions.
+constexpr double kSignDedupRadiusM = 30.0;
+// How far along the route the same-road speed-limit gap fill may borrow a posted
+// limit. A missed sign leaves a short gap; beyond ~1 km a borrowed value is too
+// far away to trust, so the gap stays blank.
+constexpr double kSpeedLimitFillMaxM = 1000.0;
+
+struct SignEdge {
+  PointLL begin;
+  std::vector<std::string> names; // sorted, for the same-road test
+  uint32_t limit;                 // trusted posted kph, 0 = none
+  bool is_link;
+  // Along-route distance at the edge's begin, summed as straight lines between
+  // consecutive edge begins. That is shorter than true edge length on a curvy road,
+  // so the cap reaches a little further there; it is kept because it is what the
+  // app's trace-based endpoint measures, and the two must agree while it serves
+  // older app versions.
+  double begin_m;
+};
+
+bool shares_name(const std::vector<std::string>& a, const std::vector<std::string>& b) {
+  auto ai = a.begin();
+  auto bi = b.begin();
+  while (ai != a.end() && bi != b.end()) {
+    if (*ai == *bi) {
+      return true;
+    }
+    if (*ai < *bi) {
+      ++ai;
+    } else {
+      ++bi;
+    }
+  }
+  return false;
+}
+
+// Complex intersections are modelled as several closely spaced nodes, each of
+// which carries the same signal. Keep the first of any points within the radius.
+// Cells are ~0.01 degrees, much larger than the radius, so a neighbour within it
+// always lies in the 3x3 block around the point's own cell.
+std::vector<PointLL> dedupe_points(const std::vector<PointLL>& points) {
+  std::vector<PointLL> kept;
+  std::unordered_map<int64_t, std::vector<PointLL>> grid;
+  auto cell_key = [](int64_t x, int64_t y) { return (x << 32) ^ (y & 0xffffffff); };
+  for (const auto& pt : points) {
+    const int64_t bx = std::lround(pt.lat() * 100);
+    const int64_t by = std::lround(pt.lng() * 100);
+    bool too_close = false;
+    for (int64_t dx = -1; dx <= 1 && !too_close; ++dx) {
+      for (int64_t dy = -1; dy <= 1 && !too_close; ++dy) {
+        auto cell = grid.find(cell_key(bx + dx, by + dy));
+        if (cell == grid.end()) {
+          continue;
+        }
+        for (const auto& k : cell->second) {
+          if (pt.Distance(k) < kSignDedupRadiusM) {
+            too_close = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!too_close) {
+      kept.push_back(pt);
+      grid[cell_key(bx, by)].push_back(pt);
+    }
+  }
+  return kept;
+}
+
+// Speed-limit change points: [lon, lat, kph] at the begin of each edge whose limit
+// differs from the previous edge's, with kph 0 marking the start of a gap the
+// client should hide rather than holding the last value forever.
+//
+// OSM tags maxspeed only where the physical sign stands, so an edge with no trusted
+// limit borrows the nearest posted limit on the SAME named road, looking back first
+// (the last posted limit is the one in effect), then forward. The search stops at
+// the first edge that shares no name, so a freeway's limit never leaks onto the
+// street it exits onto, and at kSpeedLimitFillMaxM. Links are never filled: ramps
+// often carry the parent road's name, and their real limit is unknowable.
+std::vector<std::pair<PointLL, uint32_t>> speed_limit_changes(const std::vector<SignEdge>& edges) {
+  const size_t n = edges.size();
+  std::vector<uint32_t> filled(n);
+  for (size_t i = 0; i < n; ++i) {
+    filled[i] = edges[i].limit;
+    if (filled[i] != 0 || edges[i].is_link || edges[i].names.empty()) {
+      continue;
+    }
+    uint32_t back = 0;
+    for (size_t j = i; j-- > 0;) {
+      if (edges[i].begin_m - edges[j].begin_m > kSpeedLimitFillMaxM ||
+          !shares_name(edges[j].names, edges[i].names)) {
+        break;
+      }
+      if (edges[j].limit != 0) {
+        back = edges[j].limit;
+        break;
+      }
+    }
+    uint32_t fwd = 0;
+    for (size_t j = i + 1; j < n; ++j) {
+      if (edges[j].begin_m - edges[i].begin_m > kSpeedLimitFillMaxM ||
+          !shares_name(edges[j].names, edges[i].names)) {
+        break;
+      }
+      if (edges[j].limit != 0) {
+        fwd = edges[j].limit;
+        break;
+      }
+    }
+    filled[i] = back != 0 ? back : fwd;
+  }
+
+  std::vector<std::pair<PointLL, uint32_t>> changes;
+  bool have_prev = false;
+  uint32_t prev = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (filled[i] != 0) {
+      if (!have_prev || filled[i] != prev) {
+        changes.emplace_back(edges[i].begin, filled[i]);
+      }
+      have_prev = true;
+      prev = filled[i];
+    } else {
+      if (have_prev) {
+        changes.emplace_back(edges[i].begin, 0);
+      }
+      have_prev = false;
+    }
+  }
+  return changes;
+}
+
+void sign_points(const valhalla::Api& api, int route_index, rapidjson::writer_wrapper_t& writer) {
+  std::vector<PointLL> signals, stops, yields;
+  std::set<std::pair<double, double>> seen_signals, seen_stops, seen_yields;
+  std::vector<SignEdge> sign_edges;
+
+  for (const auto& leg : api.trip().routes(route_index).legs()) {
+    const auto shape = midgard::decode<std::vector<PointLL>>(leg.shape());
+    for (int i = 1; i < leg.node_size(); ++i) {
+      if (!leg.node(i - 1).has_edge()) {
+        continue;
+      }
+      const auto& edge = leg.node(i - 1).edge();
+      if (edge.end_shape_index() >= shape.size()) {
+        continue;
+      }
+      const PointLL& end = shape[edge.end_shape_index()];
+      const auto key = std::make_pair(end.lng(), end.lat());
+      const bool is_link =
+          edge.use() == TripLeg_Use_kRampUse || edge.use() == TripLeg_Use_kTurnChannelUse;
+
+      // The edge's own signal flag means "a signal sits somewhere inside this edge"
+      // and carries no position, so it can only be pinned to the edge's end. On a
+      // metered on-ramp that end is the merge onto the freeway (ramp meters are
+      // plain highway=traffic_signals here), which drew signals on freeway
+      // mainlines. Ignore it on links; the signal at the bottom of an off-ramp is a
+      // node signal and still comes through.
+      const bool is_signal = (edge.traffic_signal() && !is_link) || leg.node(i).traffic_signal();
+      if (is_signal && seen_signals.insert(key).second) {
+        signals.push_back(end);
+      }
+      if (edge.stop_sign() && seen_stops.insert(key).second) {
+        stops.push_back(end);
+      }
+      if (edge.yield_sign() && seen_yields.insert(key).second) {
+        yields.push_back(end);
+      }
+
+      // Mappers commonly copy the parent motorway's maxspeed onto its links, so a
+      // ramp's tag is not trusted (OSM way 23393754 put 65 mph on a ramp ending at
+      // a signalised arterial). 255 is "unlimited", not a number to display.
+      SignEdge sign_edge;
+      sign_edge.begin =
+          edge.begin_shape_index() < shape.size() ? shape[edge.begin_shape_index()] : end;
+      for (const auto& name : edge.name()) {
+        sign_edge.names.push_back(name.value());
+      }
+      std::sort(sign_edge.names.begin(), sign_edge.names.end());
+      sign_edge.limit =
+          !is_link && edge.speed_limit() > 0 && edge.speed_limit() < kUnlimitedSpeedLimit
+              ? edge.speed_limit()
+              : 0;
+      sign_edge.is_link = is_link;
+      sign_edge.begin_m = sign_edges.empty() ? 0.0
+                                             : sign_edges.back().begin_m +
+                                                   sign_edges.back().begin.Distance(sign_edge.begin);
+      sign_edges.push_back(std::move(sign_edge));
+    }
+  }
+
+  auto write_points = [&writer](const char* name, const std::vector<PointLL>& points) {
+    writer.start_array(name);
+    for (const auto& pt : points) {
+      writer.start_array();
+      writer(pt.lng());
+      writer(pt.lat());
+      writer.end_array();
+    }
+    writer.end_array();
+  };
+
+  writer.start_object("sign_points");
+  writer.set_precision(tyr::kCoordinatePrecision);
+  write_points("traffic_signals", dedupe_points(signals));
+  write_points("stop_signs", dedupe_points(stops));
+  write_points("yield_signs", dedupe_points(yields));
+  writer.start_array("speed_limits");
+  for (const auto& change : speed_limit_changes(sign_edges)) {
+    writer.start_array();
+    writer(change.first.lng());
+    writer(change.first.lat());
+    writer(static_cast<uint64_t>(change.second));
+    writer.end_array();
+  }
+  writer.end_array();
+  writer.set_precision(tyr::kDefaultPrecision);
+  writer.end_object();
+}
 } // namespace
 
 namespace valhalla_serializers {
@@ -768,6 +1002,10 @@ std::string serialize(Api& api) {
 
     // summary time/distance and other stats
     summary(api, i, writer);
+
+    if (api.options().sign_points()) {
+      sign_points(api, i, writer);
+    }
 
     // get serialized warnings
     if (api.info().warnings_size() >= 1) {
