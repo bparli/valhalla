@@ -20,6 +20,11 @@ namespace {
 //         maxspeed. Neither may surface: the meter would be pinned to the merge.
 //   M..V  An off-ramp ending at a signalised intersection. That node signal is
 //         the one that matters for guidance and must come through.
+//   W..Z  A ramp meter mapped on the merge node X, where on-ramp Z-X joins the
+//         I-3 mainline (US-101 N at Cypress Ave). Never a real signal, whether the
+//         route passes along the mainline or comes up the ramp.
+//   G..3  A freeway that ends at a real signal on a street (the Central Freeway at
+//         Octavia): the route leaves I on a street, so the signal stands.
 constexpr double kGridSize = 100;
 
 const std::string kMap = R"(
@@ -34,6 +39,14 @@ J---5---K---L
 M---N---T---U
         |
         V
+
+W---X---Y
+    |
+    Z
+
+G---I---O
+    |
+    3
 )";
 
 const gurka::ways kWays = {
@@ -56,6 +69,14 @@ const gurka::ways kWays = {
     {"NT", {{"highway", "motorway_link"}, {"oneway", "yes"}, {"name", "I-2"}}},
     {"TU", {{"highway", "primary"}, {"name", "Arterial"}}},
     {"TV", {{"highway", "primary"}, {"name", "Cross"}}},
+
+    {"WX", {{"highway", "motorway"}, {"oneway", "yes"}, {"name", "I-3"}}},
+    {"XY", {{"highway", "motorway"}, {"oneway", "yes"}, {"name", "I-3"}}},
+    {"ZX", {{"highway", "motorway_link"}, {"oneway", "yes"}}},
+
+    {"GI", {{"highway", "motorway"}, {"oneway", "yes"}, {"name", "Central Fwy"}}},
+    {"IO", {{"highway", "primary"}, {"name", "Octavia"}}},
+    {"I3", {{"highway", "primary"}, {"name", "Market"}}},
 };
 
 const gurka::nodes kNodes = {
@@ -64,6 +85,8 @@ const gurka::nodes kNodes = {
     {"2", {{"highway", "give_way"}, {"direction", "forward"}}},
     {"5", {{"highway", "traffic_signals"}}},
     {"T", {{"highway", "traffic_signals"}}},
+    {"X", {{"highway", "traffic_signals"}}},
+    {"I", {{"highway", "traffic_signals"}}},
 };
 
 gurka::map sign_map;
@@ -166,4 +189,19 @@ TEST_F(SignPoints, MultiLegTripIsOneSequence) {
   expect_points(sp["traffic_signals"], {"C"});
   expect_points(sp["stop_signs"], {"D"});
   expect_points(sp["yield_signs"], {"E"});
+}
+
+// A signal-tagged merge node on a motorway is a mis-mapped ramp meter: drawn, it
+// sits on the freeway mainline.
+TEST_F(SignPoints, MergeNodeSignalOnAMotorwayIsDropped) {
+  auto doc = route_json({"W", "Y"});
+  expect_points(doc["trip"]["sign_points"]["traffic_signals"], {});
+
+  doc = route_json({"Z", "Y"});
+  expect_points(doc["trip"]["sign_points"]["traffic_signals"], {});
+}
+
+TEST_F(SignPoints, FreewayEndingAtASignalledStreetKeepsIt) {
+  auto doc = route_json({"G", "O"});
+  expect_points(doc["trip"]["sign_points"]["traffic_signals"], {"I"});
 }

@@ -913,7 +913,23 @@ void sign_points(const valhalla::Api& api, int route_index, rapidjson::writer_wr
       // plain highway=traffic_signals here), which drew signals on freeway
       // mainlines. Ignore it on links; the signal at the bottom of an off-ramp is a
       // node signal and still comes through.
-      const bool is_signal = (edge.traffic_signal() && !is_link) || leg.node(i).traffic_signal();
+      //
+      // A node signal is dropped where the route carries on along a motorway
+      // mainline. Motorways have no at-grade junctions, so a signal there is a ramp
+      // meter mapped on the merge node itself rather than up the ramp (US-101 North
+      // at the Cypress Ave on-ramp in San Mateo, OSM way 706523346). Testing the
+      // edge leaving the node keeps a freeway that ends at a real signal on a street
+      // (the Central Freeway at Octavia), and the bottom of an off-ramp. Mirrored in
+      // road-sorties app/valhalla_client.py get_traffic_signs.
+      bool continues_on_motorway = false;
+      if (leg.node(i).has_edge()) {
+        const auto& next = leg.node(i).edge();
+        continues_on_motorway = next.road_class() == valhalla::RoadClass::kMotorway &&
+                                next.use() != TripLeg_Use_kRampUse &&
+                                next.use() != TripLeg_Use_kTurnChannelUse;
+      }
+      const bool is_signal = (edge.traffic_signal() && !is_link) ||
+                             (leg.node(i).traffic_signal() && !continues_on_motorway);
       if (is_signal && seen_signals.insert(key).second) {
         signals.push_back(end);
       }
