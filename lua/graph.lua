@@ -787,6 +787,15 @@ function normalize_speed(speed)
   return num
 end
 
+-- Weights leave here in the unit the tag implies for its country, NOT always metric
+-- tonnes: in the US a bare number, "st" (short tons, which falls through to the bare
+-- path) and "lbs" (divided by 2000 below) all come out in SHORT TONS. That is
+-- deliberate. GraphEnhancer converts every kMaxWeight / kMaxAxleLoad in US, MM and LR
+-- tiles from short tons to metric (kTonsShortToMetric), once, after country codes are
+-- known -- which they are not yet here. Converting to metric in this function as well
+-- applies the factor twice and leaves every US limit about 9% too low ("7 st" -> 5.76 t
+-- instead of 6.35 t), which is what this fork shipped from Sept to Nov 2026.
+-- test/gurka/test_us_weight_units.cc pins the end-to-end result.
 function normalize_weight(weight)
 
   if weight then
@@ -801,33 +810,15 @@ function normalize_weight(weight)
         end
       end
 
-      -- "ton"/"tons" is ambiguous -- a short ton in the US, a long ton in the UK --
-      -- so it is left as metric tonnes rather than guessed at. It is 0.7% of US
-      -- maxweight values. "st" and "lt" below are unambiguous and are converted.
       if w:sub(-3) == "ton" or w:sub(-4) == "tons" then
          if (num .. "ton" == w) or (num .. "tons" == w) then
            return round(tonumber(num),2)
          end
       end
 
-      -- Everything here returns METRIC TONNES: that is what the costing compares
-      -- against (AccessType::kMaxWeight is read as tonnes in ModeSpecificAllowed),
-      -- and it is OSM's default unit for a bare maxweight number.
-      if w:sub(-2) == "st" then
-        if (num .. "st" == w) then
-          return round((tonumber(num)*0.90718474),2) -- short tons (2000 lb) -> tonnes
-        end
-      end
-
-      if w:sub(-2) == "lt" then
-        if (num .. "lt" == w) then
-          return round((tonumber(num)*1.0160469),2) -- long tons (2240 lb) -> tonnes
-        end
-      end
-
       if w:sub(-2) == "lb" or w:sub(-3) == "lbs" then
         if (num .. "lb" == w) or (num .. "lbs" == w) then
-          return round((tonumber(num)/2204.6226),2) -- pounds -> tonnes
+          return round((tonumber(num)/2000),2) -- convert to tons
         end
       end
 
